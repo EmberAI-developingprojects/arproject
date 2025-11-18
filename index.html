@@ -2,227 +2,204 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <title>Simple Web AR (Camera + MP4)</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8" />
+  <title>Simple Web AR (World Tracking)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <style>
-        * {
-            box-sizing: border-box;
-        }
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #000;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-        /* Камерын дүрс – бүх дэлгэцийг дүүргэнэ */
-        #cameraVideo {
-            position: fixed;
-            inset: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-            z-index: 1;
-        }
+    /* three.js canvas дэлгэц дүүргэнэ */
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
 
-        /* AR тавцан – 3D perspective-тэй контейнер */
-        .ar-plane-wrapper {
-            position: fixed;
-            bottom: 12vh;
-            /* доороосоо зай */
-            left: 50%;
-            transform: translateX(-50%);
-            width: 70vw;
-            /* AR обьектын өргөн */
-            max-width: 480px;
-            height: auto;
-            perspective: 900px;
-            /* 3D гүн */
-            z-index: 3;
-            pointer-events: none;
-        }
+    /* AR товч style (WebXR ARButton-д) */
+    .ar-button {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 22px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(255, 255, 255, 0.92);
+      color: #111;
+      font-size: 15px;
+      font-weight: 600;
+      z-index: 10;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
 
-        #overlayVideo {
-            width: 100%;
-            height: auto;
-            display: block;
-            object-fit: contain;
-            transform-origin: center center;
-            transform: rotateY(0deg) rotateX(0deg);
-            /* Босоо хавтгай */
-            border-radius: 18px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-            opacity: 0.98;
-            background: #000;
-        }
-
-        /* Шалгаад үзэхэд хэрэгтэй жижиг AR shadow */
-        .ar-shadow {
-            position: absolute;
-            bottom: -12px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            height: 18px;
-            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6), transparent);
-            filter: blur(6px);
-            opacity: 0.8;
-            z-index: -1;
-        }
-
-        /* Start AR товч – хэрэглэгч interaction өгөхөд */
-        #startBtn {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 22px;
-            border-radius: 999px;
-            border: none;
-            background: rgba(255, 255, 255, 0.92);
-            color: #111;
-            font-size: 15px;
-            font-weight: 600;
-            z-index: 4;
-            cursor: pointer;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-        }
-
-        #startBtn:active {
-            transform: translateX(-50%) translateY(1px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-        }
-
-        /* Дээрх AR хавтанг drag хийж хөдөлгөж болдог болгочихъё (илүү AR feel) */
-        .draggable-handle {
-            position: absolute;
-            top: -32px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60px;
-            height: 24px;
-            border-radius: 999px;
-            background: rgba(0, 0, 0, 0.45);
-            backdrop-filter: blur(8px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 11px;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            pointer-events: auto;
-            /* drag-д баригдана */
-        }
-
-        .draggable-handle::before {
-            content: "";
-            width: 24px;
-            height: 3px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.7);
-        }
-    </style>
+    .ar-button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  </style>
 </head>
 
 <body>
 
-    <!-- Камерын дүрс -->
-    <video id="cameraVideo" autoplay playsinline muted></video>
+  <!-- ARButton-ийг JS-ээс үүсгэнэ, HTML дээр тусдаа товч хэрэггүй -->
 
-    <!-- AR “дэлгэц” -->
-    <div class="ar-plane-wrapper" id="arWrapper">
-        <div class="draggable-handle"></div>
-        <video id="overlayVideo" src="video.mp4" loop playsinline></video>
-        <div class="ar-shadow"></div>
-    </div>
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+    import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
 
-    <!-- Start товч -->
-    <button id="startBtn">Start AR</button>
+    let camera, scene, renderer;
+    let reticle;              // plane илэрсэн байрлал (цагираг)
+    let video, videoTexture;  // MP4 → texture
+    let videoMesh;            // video plane (дэлгэц)
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
 
-    <script>
-        const cameraVideo = document.getElementById('cameraVideo');
-        const overlayVideo = document.getElementById('overlayVideo');
-        const startBtn = document.getElementById('startBtn');
-        const arWrapper = document.getElementById('arWrapper');
-        const handle = document.querySelector('.draggable-handle');
+    init();
+    function init() {
+      scene = new THREE.Scene();
 
-        async function startAR() {
-            try {
-                // Камер асаах (back camera-г илүүд үзнэ)
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: "environment" } },
-                    audio: false
-                });
-                cameraVideo.srcObject = stream;
+      camera = new THREE.PerspectiveCamera(
+        70,
+        window.innerWidth / window.innerHeight,
+        0.01,
+        20
+      );
 
-                // Видео тоглуулах
-                await overlayVideo.play();
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true
+      });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
 
-                // Товчийг нуух
-                startBtn.style.display = 'none';
-            } catch (e) {
-                console.error(e);
-                alert('Camera / video start failed: ' + e.message);
-            }
+      // ----- VIDEO TEXTURE -----
+      video = document.createElement("video");
+      video.src = "video.mp4";   // Vercel дээр public/video.mp4 байхаар тавиарай
+      video.loop = true;
+      video.muted = true;        // autoplay-д хэрэгтэй
+      video.playsInline = true;
+
+      videoTexture = new THREE.VideoTexture(video);
+      videoTexture.encoding = THREE.sRGBEncoding;
+
+      // plane хэмжээ (метрээр, ойролцоогоор 60см өргөн)
+      const geometry = new THREE.PlaneGeometry(0.6, 0.35);
+      const material = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        side: THREE.DoubleSide
+      });
+
+      videoMesh = new THREE.Mesh(geometry, material);
+      videoMesh.visible = false;
+      scene.add(videoMesh);
+
+      // ----- RETICLE (plane indicator) -----
+      const ringGeo = new THREE.RingGeometry(0.07, 0.09, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      reticle = new THREE.Mesh(ringGeo, ringMat);
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      // ----- AR BUTTON -----
+      const arButton = ARButton.createButton(renderer, {
+        requiredFeatures: ["hit-test"]
+      });
+
+      // ARButton-д өөрийн style-аа өгье
+      arButton.classList.add("ar-button");
+      arButton.textContent = "Эхлүүлэх";
+
+      document.body.appendChild(arButton);
+
+      // дэлгэц дээр дарвал plane дээр видео байрлуулна
+      renderer.domElement.addEventListener("click", onClick);
+
+      window.addEventListener("resize", onWindowResize);
+
+      renderer.setAnimationLoop(render);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onClick() {
+      // plane detect хийгдээгүй бол юу ч хийхгүй
+      if (!reticle.visible) return;
+
+      // видео тоглуулаад reticle байрлал дээр тавина
+      if (video.paused) {
+        video.play().catch((err) => {
+          console.warn("Video play blocked:", err);
+        });
+      }
+
+      videoMesh.position.setFromMatrixPosition(reticle.matrix);
+      videoMesh.quaternion.setFromRotationMatrix(reticle.matrix);
+      videoMesh.visible = true;
+    }
+
+    function render(timestamp, frame) {
+      const session = renderer.xr.getSession();
+      if (frame && session) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+
+        // --- Hit Test source бэлдэх (1 удаа) ---
+        if (!hitTestSourceRequested) {
+          session.requestReferenceSpace("viewer").then((viewerSpace) => {
+            session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+              hitTestSource = source;
+            });
+          });
+
+          session.addEventListener("end", () => {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          });
+
+          hitTestSourceRequested = true;
         }
 
-        startBtn.addEventListener('click', startAR);
+        // --- Plane дээрх цэгүүдийг авах ---
+        if (hitTestSource) {
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
 
-        // === AR хавтанг доор, хажуудаа чирж хөдөлгөдөг болгож AR эффект нэмнэ ===
-        let isDragging = false;
-        let lastY = 0;
-        let lastX = 0;
-        let baseBottom = 12; // vh
-        let baseOffsetX = 0; // px
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
 
-        function onDragStart(e) {
-            isDragging = true;
-            const point = e.touches ? e.touches[0] : e;
-            lastY = point.clientY;
-            lastX = point.clientX;
-            e.preventDefault();
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          } else {
+            reticle.visible = false;
+          }
         }
+      }
 
-        function onDragMove(e) {
-            if (!isDragging) return;
-            const point = e.touches ? e.touches[0] : e;
-            const dy = point.clientY - lastY;
-            const dx = point.clientX - lastX;
-            lastY = point.clientY;
-            lastX = point.clientX;
-
-            // Доош/дээш хөдөлгөх
-            baseBottom -= (dy / window.innerHeight) * 100;
-            baseBottom = Math.max(0, Math.min(40, baseBottom)); // 0–40vh хооронд
-
-            // Баруун/зүүн – translateX дээр нэмж хөдөлгөнө
-            baseOffsetX += dx;
-
-            arWrapper.style.bottom = baseBottom + "vh";
-            arWrapper.style.transform =
-                `translateX(calc(-50% + ${baseOffsetX}px))`;
-        }
-
-        function onDragEnd() {
-            isDragging = false;
-        }
-
-        handle.addEventListener('mousedown', onDragStart);
-        window.addEventListener('mousemove', onDragMove);
-        window.addEventListener('mouseup', onDragEnd);
-
-        handle.addEventListener('touchstart', onDragStart, { passive: false });
-        window.addEventListener('touchmove', onDragMove, { passive: false });
-        window.addEventListener('touchend', onDragEnd);
-    </script>
+      renderer.render(scene, camera);
+    }
+  </script>
 </body>
 
 </html>
