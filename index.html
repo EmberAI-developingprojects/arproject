@@ -1,219 +1,228 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <title>Simple Web AR (Camera + MP4)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8" />
+    <title>Simple Web AR (Camera + MP4)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-    /* Камерын дүрс – бүх дэлгэцийг дүүргэнэ */
-    #cameraVideo {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      z-index: 1;
-    }
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-    /* AR тавцан – 3D perspective-тэй контейнер */
-    .ar-plane-wrapper {
-      position: fixed;
-      bottom: 12vh;          /* доороосоо зай */
-      left: 50%;
-      transform: translateX(-50%);
-      width: 70vw;           /* AR обьектын өргөн */
-      max-width: 480px;
-      height: auto;
-      perspective: 900px;    /* 3D гүн */
-      z-index: 3;
-      pointer-events: none;
-    }
+        /* Камерын дүрс – бүх дэлгэцийг дүүргэнэ */
+        #cameraVideo {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 1;
+        }
 
-    /* Видеог хавтан шиг хэвтүүлж үзүүлнэ */
-    #overlayVideo {
-      width: 100%;
-      height: auto;
-      display: block;
-      object-fit: contain;
-      transform-origin: center center;
-      transform: rotateX(55deg);             /* газарт тавьсан мэт өнцөг */
-      border-radius: 18px;
-      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7);
-      opacity: 0.96;
-      background: #000;
-    }
+        /* AR тавцан – 3D perspective-тэй контейнер */
+        .ar-plane-wrapper {
+            position: fixed;
+            bottom: 12vh;
+            /* доороосоо зай */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70vw;
+            /* AR обьектын өргөн */
+            max-width: 480px;
+            height: auto;
+            perspective: 900px;
+            /* 3D гүн */
+            z-index: 3;
+            pointer-events: none;
+        }
 
-    /* Шалгаад үзэхэд хэрэгтэй жижиг AR shadow */
-    .ar-shadow {
-      position: absolute;
-      bottom: -12px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80%;
-      height: 18px;
-      background: radial-gradient(ellipse at center, rgba(0,0,0,0.6), transparent);
-      filter: blur(6px);
-      opacity: 0.8;
-      z-index: -1;
-    }
+        #overlayVideo {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+            transform-origin: center center;
+            transform: rotateY(0deg) rotateX(0deg);
+            /* Босоо хавтгай */
+            border-radius: 18px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            opacity: 0.98;
+            background: #000;
+        }
 
-    /* Start AR товч – хэрэглэгч interaction өгөхөд */
-    #startBtn {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 10px 22px;
-      border-radius: 999px;
-      border: none;
-      background: rgba(255,255,255,0.92);
-      color: #111;
-      font-size: 15px;
-      font-weight: 600;
-      z-index: 4;
-      cursor: pointer;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-    }
+        /* Шалгаад үзэхэд хэрэгтэй жижиг AR shadow */
+        .ar-shadow {
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 18px;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6), transparent);
+            filter: blur(6px);
+            opacity: 0.8;
+            z-index: -1;
+        }
 
-    #startBtn:active {
-      transform: translateX(-50%) translateY(1px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-    }
+        /* Start AR товч – хэрэглэгч interaction өгөхөд */
+        #startBtn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 22px;
+            border-radius: 999px;
+            border: none;
+            background: rgba(255, 255, 255, 0.92);
+            color: #111;
+            font-size: 15px;
+            font-weight: 600;
+            z-index: 4;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
 
-    /* Дээрх AR хавтанг drag хийж хөдөлгөж болдог болгочихъё (илүү AR feel) */
-    .draggable-handle {
-      position: absolute;
-      top: -32px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60px;
-      height: 24px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.45);
-      backdrop-filter: blur(8px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      font-size: 11px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      pointer-events: auto; /* drag-д баригдана */
-    }
+        #startBtn:active {
+            transform: translateX(-50%) translateY(1px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        }
 
-    .draggable-handle::before {
-      content: "";
-      width: 24px;
-      height: 3px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.7);
-    }
-  </style>
+        /* Дээрх AR хавтанг drag хийж хөдөлгөж болдог болгочихъё (илүү AR feel) */
+        .draggable-handle {
+            position: absolute;
+            top: -32px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 24px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            pointer-events: auto;
+            /* drag-д баригдана */
+        }
+
+        .draggable-handle::before {
+            content: "";
+            width: 24px;
+            height: 3px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.7);
+        }
+    </style>
 </head>
+
 <body>
 
-  <!-- Камерын дүрс -->
-  <video id="cameraVideo" autoplay playsinline muted></video>
+    <!-- Камерын дүрс -->
+    <video id="cameraVideo" autoplay playsinline muted></video>
 
-  <!-- AR “дэлгэц” -->
-  <div class="ar-plane-wrapper" id="arWrapper">
-    <div class="draggable-handle"></div>
-    <video id="overlayVideo" src="video.mp4" loop playsinline></video>
-    <div class="ar-shadow"></div>
-  </div>
+    <!-- AR “дэлгэц” -->
+    <div class="ar-plane-wrapper" id="arWrapper">
+        <div class="draggable-handle"></div>
+        <video id="overlayVideo" src="video.mp4" loop playsinline></video>
+        <div class="ar-shadow"></div>
+    </div>
 
-  <!-- Start товч -->
-  <button id="startBtn">Start AR</button>
+    <!-- Start товч -->
+    <button id="startBtn">Start AR</button>
 
-  <script>
-    const cameraVideo = document.getElementById('cameraVideo');
-    const overlayVideo = document.getElementById('overlayVideo');
-    const startBtn = document.getElementById('startBtn');
-    const arWrapper = document.getElementById('arWrapper');
-    const handle = document.querySelector('.draggable-handle');
+    <script>
+        const cameraVideo = document.getElementById('cameraVideo');
+        const overlayVideo = document.getElementById('overlayVideo');
+        const startBtn = document.getElementById('startBtn');
+        const arWrapper = document.getElementById('arWrapper');
+        const handle = document.querySelector('.draggable-handle');
 
-    async function startAR() {
-      try {
-        // Камер асаах (back camera-г илүүд үзнэ)
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false
-        });
-        cameraVideo.srcObject = stream;
+        async function startAR() {
+            try {
+                // Камер асаах (back camera-г илүүд үзнэ)
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" } },
+                    audio: false
+                });
+                cameraVideo.srcObject = stream;
 
-        // Видео тоглуулах
-        await overlayVideo.play();
+                // Видео тоглуулах
+                await overlayVideo.play();
 
-        // Товчийг нуух
-        startBtn.style.display = 'none';
-      } catch (e) {
-        console.error(e);
-        alert('Camera / video start failed: ' + e.message);
-      }
-    }
+                // Товчийг нуух
+                startBtn.style.display = 'none';
+            } catch (e) {
+                console.error(e);
+                alert('Camera / video start failed: ' + e.message);
+            }
+        }
 
-    startBtn.addEventListener('click', startAR);
+        startBtn.addEventListener('click', startAR);
 
-    // === AR хавтанг доор, хажуудаа чирж хөдөлгөдөг болгож AR эффект нэмнэ ===
-    let isDragging = false;
-    let lastY = 0;
-    let lastX = 0;
-    let baseBottom = 12; // vh
-    let baseOffsetX = 0; // px
+        // === AR хавтанг доор, хажуудаа чирж хөдөлгөдөг болгож AR эффект нэмнэ ===
+        let isDragging = false;
+        let lastY = 0;
+        let lastX = 0;
+        let baseBottom = 12; // vh
+        let baseOffsetX = 0; // px
 
-    function onDragStart(e) {
-      isDragging = true;
-      const point = e.touches ? e.touches[0] : e;
-      lastY = point.clientY;
-      lastX = point.clientX;
-      e.preventDefault();
-    }
+        function onDragStart(e) {
+            isDragging = true;
+            const point = e.touches ? e.touches[0] : e;
+            lastY = point.clientY;
+            lastX = point.clientX;
+            e.preventDefault();
+        }
 
-    function onDragMove(e) {
-      if (!isDragging) return;
-      const point = e.touches ? e.touches[0] : e;
-      const dy = point.clientY - lastY;
-      const dx = point.clientX - lastX;
-      lastY = point.clientY;
-      lastX = point.clientX;
+        function onDragMove(e) {
+            if (!isDragging) return;
+            const point = e.touches ? e.touches[0] : e;
+            const dy = point.clientY - lastY;
+            const dx = point.clientX - lastX;
+            lastY = point.clientY;
+            lastX = point.clientX;
 
-      // Доош/дээш хөдөлгөх
-      baseBottom -= (dy / window.innerHeight) * 100;
-      baseBottom = Math.max(0, Math.min(40, baseBottom)); // 0–40vh хооронд
+            // Доош/дээш хөдөлгөх
+            baseBottom -= (dy / window.innerHeight) * 100;
+            baseBottom = Math.max(0, Math.min(40, baseBottom)); // 0–40vh хооронд
 
-      // Баруун/зүүн – translateX дээр нэмж хөдөлгөнө
-      baseOffsetX += dx;
+            // Баруун/зүүн – translateX дээр нэмж хөдөлгөнө
+            baseOffsetX += dx;
 
-      arWrapper.style.bottom = baseBottom + "vh";
-      arWrapper.style.transform =
-        `translateX(calc(-50% + ${baseOffsetX}px))`;
-    }
+            arWrapper.style.bottom = baseBottom + "vh";
+            arWrapper.style.transform =
+                `translateX(calc(-50% + ${baseOffsetX}px))`;
+        }
 
-    function onDragEnd() {
-      isDragging = false;
-    }
+        function onDragEnd() {
+            isDragging = false;
+        }
 
-    handle.addEventListener('mousedown', onDragStart);
-    window.addEventListener('mousemove', onDragMove);
-    window.addEventListener('mouseup', onDragEnd);
+        handle.addEventListener('mousedown', onDragStart);
+        window.addEventListener('mousemove', onDragMove);
+        window.addEventListener('mouseup', onDragEnd);
 
-    handle.addEventListener('touchstart', onDragStart, { passive: false });
-    window.addEventListener('touchmove', onDragMove, { passive: false });
-    window.addEventListener('touchend', onDragEnd);
-  </script>
+        handle.addEventListener('touchstart', onDragStart, { passive: false });
+        window.addEventListener('touchmove', onDragMove, { passive: false });
+        window.addEventListener('touchend', onDragEnd);
+    </script>
 </body>
+
 </html>
